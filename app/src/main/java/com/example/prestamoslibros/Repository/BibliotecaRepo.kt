@@ -4,13 +4,14 @@ import com.example.prestamoslibros.DAO.AutorDAO
 import com.example.prestamoslibros.DAO.LibroDAO
 import com.example.prestamoslibros.DAO.MiembroDAO
 import com.example.prestamoslibros.DAO.PrestamoDAO
+import com.example.prestamoslibros.INTERFACES.LibroConAutor
 import com.example.prestamoslibros.INTERFACES.PrestamoConDetalles
 import com.example.prestamoslibros.Model.Autor
 import com.example.prestamoslibros.Model.Libro
 import com.example.prestamoslibros.Model.Miembro
 import com.example.prestamoslibros.Model.Prestamo
 
-class BibliotecaRepo (
+class BibliotecaRepository(
     private val autorDao: AutorDAO,
     private val libroDao: LibroDAO,
     private val miembroDao: MiembroDAO,
@@ -34,8 +35,8 @@ class BibliotecaRepo (
         libroDao.insert(libro)
     }
 
-    suspend fun getAllLibros(): List<Libro> {
-        return libroDao.getAllLibros()
+    suspend fun getAllLibros(): List<LibroConAutor> {
+        return libroDao.getAllLibrosConAutores()
     }
 
     // Operaciones para Miembros

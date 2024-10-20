@@ -29,12 +29,12 @@ fun AutorApp(autorRepository: AutorRepo) {
     var nombre by remember { mutableStateOf("") }
     var apellido by remember { mutableStateOf("") }
     var nacionalidad by remember { mutableStateOf("") }
+    var autorId by rememberSaveable { mutableStateOf(0) } // Guardamos el ID del autor para actualizarlo
     val scope = rememberCoroutineScope()
 
-    var isEditMode by rememberSaveable { mutableStateOf(false) }
+    var isEditMode by rememberSaveable { mutableStateOf(false) } // Controla si estamos en modo edición
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
-    var autorToDelete by rememberSaveable { mutableStateOf<Autor?>(null) }
-    var id by rememberSaveable { mutableStateOf("") }
+    var autorToDelete by rememberSaveable { mutableStateOf<Autor?>(null) } // Variable para guardar el autor a eliminar
     var autores by rememberSaveable { mutableStateOf(listOf<Autor>()) }
 
     val context = LocalContext.current
@@ -43,12 +43,12 @@ fun AutorApp(autorRepository: AutorRepo) {
 
     Scaffold(
         bottomBar = { BottomNavigationBar(navController = navController) } // Pasamos el navController a BottomNavigationBar
-    ) { paddingValues -> // paddingValues contiene el valor del padding para no dibujar bajo la barra de navegación
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Aplicamos el padding del Scaffold
-                .padding(16.dp) // Padding adicional
+                .padding(paddingValues)
+                .padding(16.dp)
         ) {
             // Campo de entrada para el nombre del autor
             TextField(
@@ -101,6 +101,7 @@ fun AutorApp(autorRepository: AutorRepo) {
                     }
 
                     val autor = Autor(
+                        id = if (isEditMode) autorId else 0, // Si es modo edición usamos el ID, sino 0 para que Room lo genere
                         nombre = nombre,
                         apellido = apellido,
                         nacionalidad = nacionalidad
@@ -109,10 +110,10 @@ fun AutorApp(autorRepository: AutorRepo) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             if (isEditMode) {
-                                autorRepository.update(autor)
+                                autorRepository.update(autor) // Actualizar el autor si estamos en modo edición
                                 isEditMode = false
                             } else {
-                                autorRepository.insert(autor)
+                                autorRepository.insert(autor) // Insertar nuevo autor
                             }
                         }
                         Toast.makeText(
@@ -125,7 +126,7 @@ fun AutorApp(autorRepository: AutorRepo) {
                                 nombre = ""
                                 apellido = ""
                                 nacionalidad = ""
-                                id = ""
+                                autorId = 0
                             }
                         )
                         autores = withContext(Dispatchers.IO) {
@@ -189,11 +190,12 @@ fun AutorApp(autorRepository: AutorRepo) {
                             Row {
                                 // Icono para editar
                                 IconButton(onClick = {
+                                    // Cargar datos en los campos para editar
                                     nombre = autor.nombre
                                     apellido = autor.apellido
                                     nacionalidad = autor.nacionalidad
-                                    id = autor.id.toString()
-                                    isEditMode = true
+                                    autorId = autor.id // Guardamos el ID del autor para la actualización
+                                    isEditMode = true // Cambiar a modo edición
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Edit,
@@ -204,8 +206,8 @@ fun AutorApp(autorRepository: AutorRepo) {
 
                                 // Icono para borrar
                                 IconButton(onClick = {
-                                    autorToDelete = autor
-                                    showDeleteDialog = true
+                                    autorToDelete = autor // Guardar el autor a eliminar
+                                    showDeleteDialog = true // Mostrar el diálogo de confirmación
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
@@ -217,6 +219,40 @@ fun AutorApp(autorRepository: AutorRepo) {
                         }
                     }
                 }
+            }
+
+            // Mostrar el diálogo de confirmación de eliminación
+            if (showDeleteDialog && autorToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(text = "Confirmar Eliminación") },
+                    text = { Text(text = "¿Estás seguro de que deseas eliminar este autor?") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    autorToDelete?.let { autor ->
+                                        withContext(Dispatchers.IO) {
+                                            autorRepository.deleteById(autor.id) // Eliminar el autor
+                                        }
+                                        Toast.makeText(context, "Autor eliminado", Toast.LENGTH_SHORT).show()
+                                        autores = withContext(Dispatchers.IO) {
+                                            autorRepository.getAllAutores() // Actualizar la lista
+                                        }
+                                    }
+                                }
+                                showDeleteDialog = false // Cerrar el diálogo
+                            }
+                        ) {
+                            Text(text = "Eliminar")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { showDeleteDialog = false }) {
+                            Text(text = "Cancelar")
+                        }
+                    }
+                )
             }
         }
     }

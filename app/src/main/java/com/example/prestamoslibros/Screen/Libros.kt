@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
 import com.example.prestamoslibros.BottomNavigationBar
+import com.example.prestamoslibros.INTERFACES.LibroConAutor
 import com.example.prestamoslibros.Model.Autor
 import com.example.prestamoslibros.Model.Libro
 import com.example.prestamoslibros.Repository.AutorRepo
@@ -32,11 +33,11 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
     var isDropdownExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    var isEditMode by rememberSaveable { mutableStateOf(false) }
+    var isEditMode by rememberSaveable { mutableStateOf(false) } // Variable para controlar si estamos en modo edición
+    var libroId by rememberSaveable { mutableStateOf(0) } // Guardar el ID del libro a editar
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
-    var libroToDelete by rememberSaveable { mutableStateOf<Libro?>(null) }
-    var id by rememberSaveable { mutableStateOf("") }
-    var libros by rememberSaveable { mutableStateOf(listOf<Libro>()) }
+    var libroToDelete by rememberSaveable { mutableStateOf<LibroConAutor?>(null) } // Cambiar a LibroConAutor
+    var libros by rememberSaveable { mutableStateOf(listOf<LibroConAutor>()) } // Cambiar a LibroConAutor
     var autores by remember { mutableStateOf(listOf<Autor>()) }
 
     val context = LocalContext.current
@@ -135,6 +136,7 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                     }
 
                     val libro = Libro(
+                        id = if (isEditMode) libroId else 0, // Usar el ID si es modo edición, de lo contrario, dejar que Room lo genere
                         titulo = titulo,
                         genero = genero,
                         autorId = selectedAutor!!.id
@@ -143,10 +145,10 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             if (isEditMode) {
-                                libroRepository.update(libro)
+                                libroRepository.update(libro) // Actualizar el libro si estamos en modo edición
                                 isEditMode = false
                             } else {
-                                libroRepository.insert(libro)
+                                libroRepository.insert(libro) // Insertar un nuevo libro
                             }
                         }
                         Toast.makeText(
@@ -159,11 +161,11 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                                 titulo = ""
                                 genero = ""
                                 selectedAutor = null
-                                id = ""
+                                libroId = 0
                             }
                         )
                         libros = withContext(Dispatchers.IO) {
-                            libroRepository.getAllLibros()
+                            libroRepository.getAllLibros() // Obtener los libros con los autores
                         }
                     }
                 },
@@ -179,7 +181,7 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                 onClick = {
                     scope.launch {
                         libros = withContext(Dispatchers.IO) {
-                            libroRepository.getAllLibros()
+                            libroRepository.getAllLibros() // Obtener los libros con los autores
                         }
                     }
                 },
@@ -218,16 +220,17 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                                 Text(text = "ID: ${libro.id}")
                                 Text(text = "Título: ${libro.titulo}")
                                 Text(text = "Género: ${libro.genero}")
-                                Text(text = "ID del Autor: ${libro.autorId}")
+                                Text(text = "Autor: ${libro.nombreAutor} ${libro.apellidoAutor}") // Mostramos el nombre del autor
                             }
                             Row {
                                 // Icono para editar
                                 IconButton(onClick = {
+                                    // Cargar los datos del libro en los campos para editar
                                     titulo = libro.titulo
                                     genero = libro.genero
-                                    selectedAutor = autores.firstOrNull { it.id == libro.autorId }
-                                    id = libro.id.toString()
-                                    isEditMode = true
+                                    selectedAutor = autores.firstOrNull { it.id == libro.autorId } // Seleccionar el autor correspondiente
+                                    libroId = libro.id // Guardamos el ID del libro para la actualización
+                                    isEditMode = true // Cambiar a modo edición
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Edit,
@@ -238,8 +241,8 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
 
                                 // Icono para borrar
                                 IconButton(onClick = {
-                                    libroToDelete = libro
-                                    showDeleteDialog = true
+                                    libroToDelete = libro // Guardamos el libro a eliminar
+                                    showDeleteDialog = true // Mostrar el diálogo de confirmación
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
@@ -252,7 +255,41 @@ fun LibroApp(libroRepository: LibroRepo, autorRepository: AutorRepo) {
                     }
                 }
             }
+
+            // Mostrar el diálogo de confirmación de eliminación
+            if (showDeleteDialog && libroToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(text = "Confirmar Eliminación") },
+                    text = { Text(text = "¿Estás seguro de que deseas eliminar este libro?") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    libroToDelete?.let { libro ->
+                                        withContext(Dispatchers.IO) {
+                                            libroRepository.deleteById(libro.id) // Eliminar el libro
+                                        }
+                                        Toast.makeText(context, "Libro eliminado", Toast.LENGTH_SHORT).show()
+
+                                        libros = withContext(Dispatchers.IO) { // Asegúrate de devolver la lista aquí
+                                            libroRepository.getAllLibros() // Actualizar la lista de libros
+                                        }
+                                    }
+                                }
+                                showDeleteDialog = false // Cerrar el diálogo
+                            }
+                        ) {
+                            Text(text = "Eliminar")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { showDeleteDialog = false }) {
+                            Text(text = "Cancelar")
+                        }
+                    }
+                )
+            }
         }
     }
 }
-
